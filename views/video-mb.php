@@ -1,1 +1,1 @@
-<textarea name="my_mb_embed_code" style="width: 100%; height: 50px;"><?php echo $embed; ?></textarea>
+<textarea name="embed_code" style="width: 100%; height: 50px;"><?php echo $embed_code; ?></textarea>
