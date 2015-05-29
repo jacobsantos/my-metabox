@@ -78,7 +78,7 @@ interface MyMetaBoxSaveInterface
 	public function delete_metabox($post_id, $metabox_title);
 }
 
-class MyMetaBox implements 
+final class MyMetaBox implements 
 		MyMetaBoxInterface,
 		MyMetaBoxFormDisplayInterface,
 		MyMetaBoxVideoDisplayInterface,
@@ -144,79 +144,82 @@ class MyMetaBox implements
 	}
 }
 
-function my_metabox_instance(MyMetaBoxInterface $instance = null)
+final class MyMetaBoxStorage
 {
-	static $_instance = null;
+	private static $_storage = array(
+		'register' => null,
+		'form_display' => null,
+		'video_display' => null,
+		'verify' => null,
+		'save' => null,
+	);
 	
-	if (is_null($_instance) && is_null($instance)) {
-		$_instance = new MyMetaBox;
+	private static $_instance = null;
+	
+	private function __construct()
+	{
+		$instance = new MyMetaBox;
+		self::$_storage['register'] = $instance;
+		self::$_storage['form_display'] = $instance;
+		self::$_storage['video_display'] = $instance;
+		self::$_storage['verify'] = $instance;
+		self::$_storage['save'] = $instance;
 	}
 	
-	if ( is_object($instance) ) {
-		$_instance = $instance;
+	public static function instance()
+	{
+		if (is_null(self::$_instance)) {
+			self::$_instance = new static;
+		}
+		return self::$_instance;
 	}
 	
-	return $_instance;
-}
-
-function my_metabox_display_instance(MyMetaBoxFormDisplayInterface $instance = null)
-{
-	static $_instance = null;
-	
-	if (is_null($_instance) && is_null($instance)) {
-		$_instance = new MyMetaBox;
+	public function register($instance)
+	{
+		switch (true) {
+			case ($instance instanceof MyMetaBoxInterface):
+				self::$_storage['register'] = $instance;
+				break;
+			case ($instance instanceof MyMetaBoxFormDisplayInterface):
+				self::$_storage['form_display'] = $instance;
+				break;
+			case ($instance instanceof MyMetaBoxVideoDisplayInterface):
+				self::$_storage['video_display'] = $instance;
+				break;
+			case ($instance instanceof MyMetaBoxSaveVerificationInterface):
+				self::$_storage['verify'] = $instance;
+				break;
+			case ($instance instanceof MyMetaBoxSaveInterface):
+				self::$_storage['save'] = $instance;
+				break;
+			default:
+				throw new Exception("instance object type is not supported.");
+		}
 	}
 	
-	if ( is_object($instance) ) {
-		$_instance = $instance;
+	public function metabox()
+	{
+		return self::$_storage['register'];
 	}
 	
-	return $_instance;
-}
-
-function my_metabox_video_display_instance(MyMetaBoxVideoDisplayInterface $instance = null)
-{
-	static $_instance = null;
-	
-	if (is_null($_instance) && is_null($instance)) {
-		$_instance = new MyMetaBox;
+	public function display($type = 'form')
+	{
+		$name = $type.'_display';
+		if ( array_key_exists($name, self::$_storage) ) {
+			return self::$_storage[$name];
+		}
+		return null;
 	}
 	
-	if ( is_object($instance) ) {
-		$_instance = $instance;
+	public function verify()
+	{
+		return self::$_storage['verify'];
 	}
 	
-	return $_instance;
-}
-
-function my_metabox_verify_instance(MyMetaBoxSaveVerificationInterface $instance = null)
-{
-	static $_instance = null;
-	
-	if (is_null($_instance) && is_null($instance)) {
-		$_instance = new MyMetaBox;
+	public function save()
+	{
+		return self::$_storage['save'];
 	}
-	
-	if ( is_object($instance) ) {
-		$_instance = $instance;
-	}
-	
-	return $_instance;
-}
-
-function my_metabox_save_instance(MyMetaBoxSaveInterface $instance = null)
-{
-	static $_instance = null;
-	
-	if (is_null($_instance) && is_null($instance)) {
-		$_instance = new MyMetaBox;
-	}
-	
-	if ( is_object($instance) ) {
-		$_instance = $instance;
-	}
-	
-	return $_instance;
 }
 
 /**
@@ -226,7 +229,7 @@ function my_metabox_save_instance(MyMetaBoxSaveInterface $instance = null)
  */
 function my_mb_register()
 {
-	my_metabox_instance()->register();
+	MyMetaBoxStorage::instance()->metabox()->register();
 }
 add_action('add_meta_boxes', 'my_mb_register');
 
@@ -237,7 +240,7 @@ add_action('add_meta_boxes', 'my_mb_register');
  */
 function my_mb_html($post)
 {
-	my_metabox_display_instance()->metabox_display($post);
+	MyMetaBoxStorage::instance()->display('form')->metabox_display($post);
 }
 
 /**
@@ -249,15 +252,16 @@ function my_mb_html($post)
  */
 function my_mb_save($post_id, $post, $update)
 {
-	if ( ! my_metabox_verify_instance()->verify($post) ) {
+	if ( ! MyMetaBoxStorage::instance()->verify()->verify($post) ) {
 		return;
 	}
 
-    if (isset($_POST[my_metabox_display_instance()->metabox_form_name()])) {
-		$value = $_POST[my_metabox_display_instance()->metabox_form_name()];
-		my_metabox_save_instance()->update_metabox($post_id, 'my_mb_embed_code', $value);
+	$field_name = MyMetaBoxStorage::instance()->display('form')->metabox_form_name();
+    if (isset($_POST[$field_name])) {
+		$value = $_POST[$field_name];
+		MyMetaBoxStorage::instance()->save()->update_metabox($post_id, 'my_mb_embed_code', $value);
     } else {
-		my_metabox_save_instance()->delete_metabox($post_id, 'my_mb_embed_code');
+		MyMetaBoxStorage::instance()->save()->delete_metabox($post_id, 'my_mb_embed_code');
     }
 }
 add_action('save_post', 'my_mb_save', 10, 3);
@@ -269,6 +273,6 @@ add_action('save_post', 'my_mb_save', 10, 3);
  */
 function my_mb_show_video($content)
 {
-    return my_metabox_video_display_instance()->video_display($content);
+    return MyMetaBoxStorage::instance()->display('video')->video_display($content);
 }
 add_filter('the_content', 'my_mb_show_video');
